@@ -1,4 +1,4 @@
-# Traductor LIVE v0.1.0
+# Traductor LIVE v0.2.0
 
 Aplicación Android para traducción de conversaciones presenciales al castellano.
 
@@ -17,3 +17,8 @@ El reconocimiento depende del servicio de voz de Android y puede necesitar Inter
 
 ## Privacidad
 El audio no se almacena. El proveedor de reconocimiento de voz puede procesar el audio fuera del dispositivo. Informar a los participantes antes de usar.
+
+## v0.2.0 — escucha prolongada
+- La sesión permanece activa entre frases; ante silencios o errores recuperables, reinicia el reconocedor automáticamente hasta pulsar Detener.
+- El motor SpeechRecognizer de Android segmenta el habla y puede introducir pausas breves entre reinicios. No es captura de audio ininterrumpida.
+- Si se abandona la app, la escucha se detiene por privacidad; la pantalla debe permanecer abierta.
