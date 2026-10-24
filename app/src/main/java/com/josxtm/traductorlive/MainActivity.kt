@@ -33,6 +33,7 @@ class MainActivity:Activity() {
  private val detector=LanguageIdentification.getClient()
  private var active=false
  private var generation=0
+ private var retryCount=0
  private var language="en-US"
  private val names=arrayOf("Inglés","Francés","Alemán","Italiano","Portugués","Español")
  private val codes=arrayOf("en-US","fr-FR","de-DE","it-IT","pt-PT","es-ES")
@@ -87,13 +88,14 @@ class MainActivity:Activity() {
    return
   }
   if(!SpeechRecognizer.isRecognitionAvailable(this)){status.text="Reconocimiento de voz no disponible";return}
-  active=true;generation++
+  active=true;generation++;retryCount=0
   toggle.text="PULSA PARA\nDETENER";styleButton(true)
   listen(generation)
  }
  private fun listen(expected:Int){
   if(!active||expected!=generation)return
   recognizer?.destroy()
+  recognizer=null
   recognizer=SpeechRecognizer.createSpeechRecognizer(this)
   recognizer?.setRecognitionListener(object:RecognitionListener {
    override fun onReadyForSpeech(params:Bundle?){if(active)status.text="Escuchando…"}
@@ -104,19 +106,27 @@ class MainActivity:Activity() {
    override fun onError(error:Int){
     if(!active||generation!=expected)return
     recognizer?.destroy();recognizer=null
-    if(error==SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS||error==SpeechRecognizer.ERROR_CLIENT){
-     stop();status.text="Error de reconocimiento: $error"
-    }else toggle.postDelayed({if(active&&generation==expected)listen(expected)},850)
+    if(error==SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS){
+     stop();status.text="Permiso de micrófono denegado"
+    } else {
+     retryCount=(retryCount+1).coerceAtMost(6)
+     val delay=(500L * retryCount).coerceAtMost(3000L)
+     status.text="Escucha activa · reconectando…"
+     toggle.postDelayed({if(active&&generation==expected)listen(expected)},delay)
+    }
    }
    override fun onResults(results:Bundle?){
     val spoken=results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
     if(active&&generation==expected){
+     retryCount=0
      if(spoken.isNotBlank())translate(spoken,expected)
-     toggle.postDelayed({if(active&&generation==expected)listen(expected)},400)
+     status.text="Escucha activa · continuando…"
+     toggle.postDelayed({if(active&&generation==expected)listen(expected)},120)
     }
    }
    override fun onPartialResults(partialResults:Bundle?){
     if(active&&generation==expected){
+     retryCount=0
      val partial=partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
      if(!partial.isNullOrBlank())original.text=partial
     }
@@ -128,7 +138,12 @@ class MainActivity:Activity() {
    putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS,true)
    putExtra(RecognizerIntent.EXTRA_LANGUAGE,language)
   }
-  try{recognizer?.startListening(intent)}catch(e:Exception){stop();status.text=e.message ?: "No se puede escuchar"}
+  try{recognizer?.startListening(intent)}catch(e:Exception){
+   if(active&&expected==generation){
+    status.text="Escucha activa · reintentando…"
+    toggle.postDelayed({if(active&&expected==generation)listen(expected)},1500)
+   }
+  }
  }
  private fun translate(spoken:String,expected:Int){
   original.text=spoken;result.text="Traduciendo…"
@@ -152,7 +167,7 @@ class MainActivity:Activity() {
   }.addOnFailureListener{if(generation==expected)result.text="No se pudo detectar el idioma"}
  }
  private fun stop(){
-  active=false;generation++
+  active=false;generation++;retryCount=0
   recognizer?.cancel();recognizer?.destroy();recognizer=null
   toggle.text="PULSA PARA\nTRADUCIR";styleButton(false)
   status.text="Micrófono desactivado"
